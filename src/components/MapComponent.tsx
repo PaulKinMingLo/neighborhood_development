@@ -1,57 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { DevelopmentApplication, NeighbourhoodGeoJSON } from "../types/development";
-
-// Typed interfaces for Leaflet DOM objects
-interface LeafletMapInstance {
-  fitBounds(bounds: unknown, options?: unknown): void;
-  flyTo(latLng: [number, number], zoom: number, options?: unknown): void;
-  remove(): void;
-  removeLayer(layer: unknown): void;
-}
-
-interface LeafletLayerGroup {
-  clearLayers(): void;
-  getBounds(): { isValid(): boolean };
-  addTo(map: unknown): LeafletLayerGroup;
-}
-
-interface LeafletCircleMarkerInstance {
-  bindPopup(content: string, options?: unknown): LeafletCircleMarkerInstance;
-  on(event: string, fn: () => void): LeafletCircleMarkerInstance;
-  addTo(group: unknown): LeafletCircleMarkerInstance;
-  openPopup(): void;
-}
-
-interface LeafletGeoJSONInstance {
-  addTo(map: unknown): LeafletGeoJSONInstance;
-  resetStyle(layer: unknown): void;
-}
-
-interface LeafletPathTarget {
-  setStyle(style: { weight?: number; color?: string; fillOpacity?: number }): void;
-}
-
-interface LeafletGlobal {
-  map(element: HTMLElement, options?: Record<string, unknown>): LeafletMapInstance;
-  control: {
-    zoom(options?: { position: string }): { addTo(map: unknown): void };
-  };
-  tileLayer(url: string, options?: Record<string, unknown>): { addTo(map: unknown): void };
-  featureGroup(): LeafletLayerGroup;
-  circleMarker(
-    latLng: [number, number],
-    options?: Record<string, unknown>
-  ): LeafletCircleMarkerInstance;
-  geoJSON(geojson: unknown, options?: Record<string, unknown>): LeafletGeoJSONInstance;
-}
-
-declare global {
-  interface Window {
-    L: LeafletGlobal;
-  }
-}
 
 interface MapComponentProps {
   applications: DevelopmentApplication[];
@@ -65,56 +17,14 @@ export default function MapComponent({
   onSelectApp,
 }: MapComponentProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<LeafletMapInstance | null>(null);
-  const markersGroupRef = useRef<LeafletLayerGroup | null>(null);
-  const geojsonLayerRef = useRef<LeafletGeoJSONInstance | null>(null);
-  const markersMapRef = useRef<Map<number, LeafletCircleMarkerInstance>>(new Map());
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markersGroupRef = useRef<L.FeatureGroup | null>(null);
+  const geojsonLayerRef = useRef<L.GeoJSON | null>(null);
+  const markersMapRef = useRef<Map<number, L.CircleMarker>>(new Map());
   const neighbourhoodCacheRef = useRef<NeighbourhoodGeoJSON | null>(null);
 
-  const [isLeafletReady, setIsLeafletReady] = useState<boolean>(
-    () => typeof window !== "undefined" && Boolean(window.L)
-  );
   const [showNeighbourhoods, setShowNeighbourhoods] = useState(false);
   const [isLoadingNeighbourhoods, setIsLoadingNeighbourhoods] = useState(false);
-
-  // 1. Dynamically load Leaflet CSS & JS from CDN
-  useEffect(() => {
-    if (typeof window === "undefined" || window.L) return;
-
-    // Add CSS
-    const linkId = "leaflet-stylesheet";
-    if (!document.getElementById(linkId)) {
-      const link = document.createElement("link");
-      link.id = linkId;
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
-      link.crossOrigin = "";
-      document.head.appendChild(link);
-    }
-
-    // Add JS
-    const scriptId = "leaflet-script";
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-      script.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
-      script.crossOrigin = "";
-      script.onload = () => {
-        setIsLeafletReady(true);
-      };
-      document.body.appendChild(script);
-    } else {
-      const checkL = setInterval(() => {
-        if (window.L) {
-          setIsLeafletReady(true);
-          clearInterval(checkL);
-        }
-      }, 50);
-      return () => clearInterval(checkL);
-    }
-  }, []);
 
   // Status-based color mapping
   const getStatusColor = (status: string) => {
@@ -142,11 +52,10 @@ export default function MapComponent({
     }
   };
 
-  // 2. Initialize Leaflet Map
+  // 1. Initialize Leaflet Map
   useEffect(() => {
-    if (!isLeafletReady || !mapContainerRef.current || mapInstanceRef.current) return;
+    if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    const L = window.L;
     const map = L.map(mapContainerRef.current, {
       center: [43.68, -79.38],
       zoom: 12,
@@ -167,14 +76,15 @@ export default function MapComponent({
     return () => {
       map.remove();
       mapInstanceRef.current = null;
+      markersGroupRef.current = null;
+      geojsonLayerRef.current = null;
     };
-  }, [isLeafletReady]);
+  }, []);
 
-  // 3. Render Application Markers
+  // 2. Render Application Markers
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.L || !markersGroupRef.current) return;
+    if (!mapInstanceRef.current || !markersGroupRef.current) return;
 
-    const L = window.L;
     const markersGroup = markersGroupRef.current;
     markersGroup.clearLayers();
     markersMapRef.current.clear();
@@ -246,7 +156,7 @@ export default function MapComponent({
         console.warn("Could not fit map bounds:", e);
       }
     }
-  }, [applications, isLeafletReady, onSelectApp, selectedApp]);
+  }, [applications, onSelectApp, selectedApp]);
 
   // 4. Center map and open popup when selectedApp changes
   useEffect(() => {
@@ -266,12 +176,11 @@ export default function MapComponent({
     }
   }, [selectedApp]);
 
-  // 5. Toggle Toronto Neighbourhoods Boundary Layer
+  // 4. Toggle Toronto Neighbourhoods Boundary Layer
   const toggleNeighbourhoods = useCallback(async () => {
-    if (!mapInstanceRef.current || !window.L) return;
+    if (!mapInstanceRef.current) return;
 
     const map = mapInstanceRef.current;
-    const L = window.L;
 
     if (showNeighbourhoods) {
       if (geojsonLayerRef.current) {
@@ -301,7 +210,7 @@ export default function MapComponent({
         // Clone to avoid mutating cached object when Leaflet registers internal IDs
         const geojsonPayload = JSON.parse(JSON.stringify(cached));
 
-        const layer = L.geoJSON(geojsonPayload, {
+        const layer = L.geoJSON(geojsonPayload as unknown as GeoJSON.GeoJsonObject, {
           style: {
             color: "#0284c7",
             weight: 1.5,
@@ -309,17 +218,12 @@ export default function MapComponent({
             fillColor: "#38bdf8",
             fillOpacity: 0.08,
           },
-          onEachFeature: (
-            feature: { properties?: Record<string, unknown> },
-            fLayer: {
-              bindTooltip(text: string, options: unknown): void;
-              on(events: Record<string, (e: { target: LeafletPathTarget }) => void>): void;
-            }
-          ) => {
+          onEachFeature: (feature, fLayer) => {
+            const props = feature.properties as Record<string, unknown> | undefined;
             const name =
-              (feature.properties?.AREA_NAME as string) ||
-              (feature.properties?.AREA_S_CD as string) ||
-              (feature.properties?.name as string) ||
+              (props?.AREA_NAME as string) ||
+              (props?.AREA_S_CD as string) ||
+              (props?.name as string) ||
               "Neighbourhood";
 
             fLayer.bindTooltip(name, {
@@ -330,14 +234,15 @@ export default function MapComponent({
 
             fLayer.on({
               mouseover: (e) => {
-                e.target.setStyle({
+                const target = e.target as L.Path;
+                target.setStyle({
                   weight: 2.5,
                   color: "#0369a1",
                   fillOpacity: 0.22,
                 });
               },
               mouseout: (e) => {
-                layer.resetStyle(e.target);
+                layer.resetStyle(e.target as L.Path);
               },
             });
           },
@@ -359,65 +264,55 @@ export default function MapComponent({
       {/* Map Container */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-      {/* Loading state indicator before Leaflet is ready */}
-      {!isLeafletReady && (
-        <div className="absolute inset-0 bg-slate-100 flex flex-col items-center justify-center gap-3 z-10">
-          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm font-medium text-slate-600">Loading Geospatial Map Canvas...</p>
-        </div>
-      )}
-
       {/* Floating Map Controls & Overlays */}
-      {isLeafletReady && (
-        <div className="absolute top-4 right-4 z-400 flex flex-col gap-2">
-          {/* Neighbourhoods GeoJSON Boundary Toggle Button */}
-          <button
-            onClick={toggleNeighbourhoods}
-            disabled={isLoadingNeighbourhoods}
-            className={`px-3 py-2 rounded-lg text-xs font-semibold shadow-md backdrop-blur border transition-all flex items-center gap-2 ${
-              showNeighbourhoods
-                ? "bg-blue-600 text-white border-blue-700 shadow-blue-500/20"
-                : "bg-white/95 text-slate-700 hover:bg-slate-50 border-slate-200"
-            }`}
-          >
-            <span>🗺️</span>
-            <span>
-              {isLoadingNeighbourhoods
-                ? "Loading Boundaries..."
-                : showNeighbourhoods
-                ? "Hide Neighbourhoods"
-                : "Show 158 Neighbourhoods"}
-            </span>
-          </button>
+      <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2">
+        {/* Neighbourhoods GeoJSON Boundary Toggle Button */}
+        <button
+          onClick={toggleNeighbourhoods}
+          disabled={isLoadingNeighbourhoods}
+          className={`px-3 py-2 rounded-lg text-xs font-semibold shadow-md backdrop-blur border transition-all flex items-center gap-2 ${
+            showNeighbourhoods
+              ? "bg-blue-600 text-white border-blue-700 shadow-blue-500/20"
+              : "bg-white/95 text-slate-700 hover:bg-slate-50 border-slate-200"
+          }`}
+        >
+          <span>🗺️</span>
+          <span>
+            {isLoadingNeighbourhoods
+              ? "Loading Boundaries..."
+              : showNeighbourhoods
+              ? "Hide Neighbourhoods"
+              : "Show 158 Neighbourhoods"}
+          </span>
+        </button>
 
-          {/* Map Legend */}
-          <div className="bg-white/95 backdrop-blur border border-slate-200 rounded-lg p-3 shadow-md text-xs text-slate-700 space-y-1.5">
-            <div className="font-semibold text-slate-900 border-b border-slate-100 pb-1 mb-1">
-              Application Status
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-600 shrink-0" />
-              <span>Under Review / Received</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-600 shrink-0" />
-              <span>Approved / Permit</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
-              <span>Hearing / Consultation</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-slate-500 shrink-0" />
-              <span>Closed / Other</span>
-            </div>
+        {/* Map Legend */}
+        <div className="bg-white/95 backdrop-blur border border-slate-200 rounded-lg p-3 shadow-md text-xs text-slate-700 space-y-1.5">
+          <div className="font-semibold text-slate-900 border-b border-slate-100 pb-1 mb-1">
+            Application Status
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-blue-600 shrink-0" />
+            <span>Under Review / Received</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-emerald-600 shrink-0" />
+            <span>Approved / Permit</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
+            <span>Hearing / Consultation</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-slate-500 shrink-0" />
+            <span>Closed / Other</span>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Selected Application Bottom Detail Card */}
       {selectedApp && (
-        <div className="absolute bottom-6 left-6 right-6 md:left-6 md:right-auto md:max-w-md bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-xl border border-slate-200/80 z-400 transition-all">
+        <div className="absolute bottom-6 left-6 right-6 md:left-6 md:right-auto md:max-w-md bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-xl border border-slate-200/80 z-[400] transition-all">
           <div className="flex items-start justify-between gap-2">
             <div>
               <span
