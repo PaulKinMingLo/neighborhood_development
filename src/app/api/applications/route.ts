@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status") || undefined;
   const ward = searchParams.get("ward") || undefined;
   const applicationType = searchParams.get("type") || undefined;
+  const year = searchParams.get("year") || undefined;
 
   const filters: Record<string, string> = {};
   if (status && status !== "ALL") {
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
       limit,
       offset,
       q,
+      year: year && year !== "ALL" ? year : undefined,
       filters: Object.keys(filters).length > 0 ? filters : undefined,
     });
 

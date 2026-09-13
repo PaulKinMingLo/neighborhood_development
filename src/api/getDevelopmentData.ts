@@ -86,6 +86,7 @@ export interface FetchOptions {
   q?: string;
   filters?: Record<string, string>;
   sort?: string;
+  year?: string;
 }
 
 /**
@@ -135,11 +136,26 @@ export async function getDevelopmentData(
       throw new Error("Invalid response format from Open Data Toronto CKAN API");
     }
 
-    return data.result.records.map(transformCKANRecord);
+    let records = data.result.records.map(transformCKANRecord);
+
+    if (options.year && options.year !== "ALL") {
+      records = records.filter((app) => {
+        if (!app.dateSubmitted) return false;
+        const match = app.dateSubmitted.match(/^(\d{4})/);
+        const appYear = match
+          ? match[1]
+          : (!isNaN(new Date(app.dateSubmitted).getTime())
+          ? new Date(app.dateSubmitted).getFullYear().toString()
+          : null);
+        return appYear === options.year;
+      });
+    }
+
+    return records;
   } catch (error) {
     console.error("Failed to fetch Development Applications from Open Data Toronto:", error);
     // Return sample prototype applications as fallback
-    return getFallbackApplications();
+    return getFallbackApplications(options.year);
   }
 }
 
@@ -169,14 +185,14 @@ export async function getNeighbourhoodsGeoJSON(): Promise<NeighbourhoodGeoJSON |
 /**
  * Curated fallback data for offline prototyping and test resilience.
  */
-function getFallbackApplications(): DevelopmentApplication[] {
+function getFallbackApplications(year?: string): DevelopmentApplication[] {
   const fallbackRaw: CKANRawRecord[] = [
     {
       _id: 101,
-      "APPLICATION#": "24 110245 STE 10 OZ",
+      "APPLICATION#": "23 110245 STE 10 OZ",
       APPLICATION_TYPE: "OZ",
       STATUS: "Under Review",
-      DATE_SUBMITTED: "2024-05-12T00:00:00",
+      DATE_SUBMITTED: "2023-11-12T00:00:00",
       STREET_NUM: "664",
       STREET_NAME: "YONGE",
       STREET_TYPE: "ST",
@@ -242,10 +258,10 @@ function getFallbackApplications(): DevelopmentApplication[] {
     },
     {
       _id: 104,
-      "APPLICATION#": "24 130120 NY 08 OZ",
+      "APPLICATION#": "25 130120 NY 18 OZ",
       APPLICATION_TYPE: "OZ",
       STATUS: "Under Review",
-      DATE_SUBMITTED: "2024-07-02T00:00:00",
+      DATE_SUBMITTED: "2025-01-20T00:00:00",
       STREET_NUM: "5000",
       STREET_NAME: "YONGE",
       STREET_TYPE: "ST",
@@ -286,5 +302,20 @@ function getFallbackApplications(): DevelopmentApplication[] {
     },
   ];
 
-  return fallbackRaw.map(transformCKANRecord);
+  const apps = fallbackRaw.map(transformCKANRecord);
+
+  if (year && year !== "ALL") {
+    return apps.filter((app) => {
+      if (!app.dateSubmitted) return false;
+      const match = app.dateSubmitted.match(/^(\d{4})/);
+      const appYear = match
+        ? match[1]
+        : (!isNaN(new Date(app.dateSubmitted).getTime())
+        ? new Date(app.dateSubmitted).getFullYear().toString()
+        : null);
+      return appYear === year;
+    });
+  }
+
+  return apps;
 }

@@ -26,6 +26,7 @@ export default function TrackerDashboard({ initialData }: DashboardProps) {
   const [selectedType, setSelectedType] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedWard, setSelectedWard] = useState<string>("ALL");
+  const [selectedYear, setSelectedYear] = useState<string>("ALL");
   const [mobileTab, setMobileTab] = useState<"list" | "map">("list");
   const [detailModalApp, setDetailModalApp] = useState<DevelopmentApplication | null>(null);
 
@@ -45,6 +46,23 @@ export default function TrackerDashboard({ initialData }: DashboardProps) {
       if (app.applicationType) typesSet.add(app.applicationType);
     });
     return Array.from(typesSet).sort();
+  }, [applications]);
+
+  // Extract unique Submitted Years from data
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+    applications.forEach((app) => {
+      if (app.dateSubmitted) {
+        const match = app.dateSubmitted.match(/^(\d{4})/);
+        const year = match
+          ? match[1]
+          : (!isNaN(new Date(app.dateSubmitted).getTime())
+          ? new Date(app.dateSubmitted).getFullYear().toString()
+          : null);
+        if (year) yearsSet.add(year);
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
   }, [applications]);
 
   // Filter application list
@@ -83,9 +101,23 @@ export default function TrackerDashboard({ initialData }: DashboardProps) {
         return false;
       }
 
+      // Year filter (submitted date)
+      if (selectedYear !== "ALL") {
+        if (!app.dateSubmitted) return false;
+        const match = app.dateSubmitted.match(/^(\d{4})/);
+        const appYear = match
+          ? match[1]
+          : (!isNaN(new Date(app.dateSubmitted).getTime())
+          ? new Date(app.dateSubmitted).getFullYear().toString()
+          : null);
+        if (appYear !== selectedYear) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [applications, searchTerm, selectedType, selectedStatus, selectedWard]);
+  }, [applications, searchTerm, selectedType, selectedStatus, selectedWard, selectedYear]);
 
   // Status badge styling helper
   const getStatusBadge = (status: string) => {
@@ -169,7 +201,7 @@ export default function TrackerDashboard({ initialData }: DashboardProps) {
             </div>
 
             {/* Filter Controls Grid */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {/* Type Filter */}
               <div>
                 <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
@@ -178,7 +210,7 @@ export default function TrackerDashboard({ initialData }: DashboardProps) {
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full py-1.5 px-2 text-xs border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full py-1.5 px-2 text-xs border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
                 >
                   <option value="ALL">All Types</option>
                   {availableTypes.map((type) => (
@@ -197,7 +229,7 @@ export default function TrackerDashboard({ initialData }: DashboardProps) {
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full py-1.5 px-2 text-xs border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full py-1.5 px-2 text-xs border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
                 >
                   <option value="ALL">All Status</option>
                   <option value="REVIEW">Under Review</option>
@@ -225,6 +257,25 @@ export default function TrackerDashboard({ initialData }: DashboardProps) {
                   ))}
                 </select>
               </div>
+
+              {/* Year Filter */}
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Submitted Year
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="w-full py-1.5 px-2 text-xs border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
+                >
+                  <option value="ALL">All Years</option>
+                  {availableYears.map((yr) => (
+                    <option key={yr} value={yr}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Counter and Active Filters summary */}
@@ -233,13 +284,18 @@ export default function TrackerDashboard({ initialData }: DashboardProps) {
                 Showing <strong className="text-slate-800">{filteredApps.length}</strong> of{" "}
                 {applications.length} applications
               </span>
-              {(searchTerm || selectedType !== "ALL" || selectedStatus !== "ALL" || selectedWard !== "ALL") && (
+              {(searchTerm ||
+                selectedType !== "ALL" ||
+                selectedStatus !== "ALL" ||
+                selectedWard !== "ALL" ||
+                selectedYear !== "ALL") && (
                 <button
                   onClick={() => {
                     setSearchTerm("");
                     setSelectedType("ALL");
                     setSelectedStatus("ALL");
                     setSelectedWard("ALL");
+                    setSelectedYear("ALL");
                   }}
                   className="text-blue-600 hover:text-blue-700 text-xs font-medium underline"
                 >

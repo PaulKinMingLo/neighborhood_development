@@ -90,6 +90,7 @@ export interface ApplicationFilters {
   status?: string;
   applicationType?: string;
   ward?: string;
+  year?: string;
 }
 
 export interface NeighbourhoodFeature {
