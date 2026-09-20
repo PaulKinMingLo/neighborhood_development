@@ -2,6 +2,12 @@
 
 This is a web application aims to visualize the development application of Toronto. The development is still in progress. Frequent update will be expected.
 
+
+## Data Source
+The data are retrieved from [City of Toronto Open Data Portal](https://open.toronto.ca/dataset/development-applications/). 
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
