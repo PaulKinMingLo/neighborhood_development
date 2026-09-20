@@ -26,7 +26,8 @@ export interface DevelopmentApplication {
   y?: string | null;
 
   // Backwards-compatible aliases for uppercase fields if needed by existing code
-  _id?: number;
+  _id?: string;
+  _rev?: string;
   APPLICATION_NUMBER?: string;
   APPLICATION_TYPE?: string;
   APPLICATION_STATUS?: string;

@@ -66,7 +66,7 @@ export function transformCKANRecord(record: CKANRawRecord): DevelopmentApplicati
     y: record.Y || null,
 
     // Backward compatibility aliases
-    _id: record._id,
+    _id: String(record._id),
     APPLICATION_NUMBER: appNumber,
     APPLICATION_TYPE: appType,
     APPLICATION_STATUS: status,
